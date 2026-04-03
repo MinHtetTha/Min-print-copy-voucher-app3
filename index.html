@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Min Copy & Print - Pro POS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        :root { --primary: #FF8C00; --dark: #2d3436; --bg: #fdfaf5; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { background: var(--bg); padding-bottom: 80px; }
+        header { background: var(--primary); color: white; text-align: center; padding: 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 450px; margin: auto; padding: 15px; }
+        .quick-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px; }
+        .q-btn { background: white; border: 1px solid #ddd; padding: 10px 5px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        section { background: white; padding: 20px; border-radius: 20px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 6px; color: #555; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1.5px solid #eee; border-radius: 12px; outline: none; font-size: 1rem; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 16px; width: 100%; border-radius: 15px; font-weight: bold; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .settings-btn { background: white; width: 100%; padding: 18px; border-radius: 15px; border: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; cursor: pointer; font-weight: bold; color: #444; }
+        .settings-content { display: none; background: white; padding: 20px; border-radius: 0 0 15px 15px; margin-top: -15px; margin-bottom: 15px; border: 1px solid #eee; border-top: none; }
+        .active-content { display: block; }
+        .bill-item { border-bottom: 1px solid #eee; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; }
+        .grand-total { font-size: 1.6rem; font-weight: bold; color: #d35400; text-align: center; margin: 15px 0; }
+        .btn-print { background: var(--dark); color: white; border: none; padding: 18px; width: 100%; border-radius: 15px; font-weight: bold; cursor: pointer; font-size: 1.1rem; }
+        .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid #ddd; z-index: 1000; }
+        .nav-item { text-align: center; color: #888; cursor: pointer; font-size: 0.8rem; flex: 1; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item i { font-size: 1.4rem; display: block; margin-bottom: 2px; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; justify-content: center; align-items: center; }
+        .voucher-card { background: white; width: 90%; max-width: 350px; max-height: 85vh; border-radius: 15px; position: relative; overflow: hidden; }
+        #vCaptureWrapper { overflow-y: auto; padding: 25px 20px; }
+        #vCapture { font-family: 'Courier New', monospace; color: #000; background: white; }
+        .v-header { text-align: center; border-bottom: 2px dashed #FF8C00; padding-bottom: 10px; margin-bottom: 10px; }
+        .v-logo { width: 70px; height: 70px; border-radius: 50%; border: 2px solid #FF8C00; margin-bottom: 5px; object-fit: cover; }
+        .pdf-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 15px; border-radius: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .preview-img { width: 60px; height: 60px; border-radius: 10px; border: 1px solid #ddd; margin-top: 5px; object-fit: cover; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<header><h1 id="headerShopName">Min Copy & Print</h1></header>
+
+<div class="container" id="posView">
+    <section><div style="display:flex; gap:10px;"><div style="flex:1"><label>ဝယ်ယူသူအမည်</label><input type="text" id="custName" placeholder="Customer Name"></div><div style="flex:1"><label>ဖုန်းနံပါတ်</label><input type="tel" id="custPhone" placeholder="09xxxxxxx"></div></div></section>
+    <div class="quick-actions" id="quickButtons"></div>
+    <section><div class="form-group"><label>ပစ္စည်းအမျိုးအမည်</label><input type="text" id="itemName" list="items" placeholder="ရွေးပါ သို့မဟုတ် ရိုက်ပါ" oninput="autoPrice()"><datalist id="items"></datalist></div><div style="display:flex; gap:10px;"><div style="flex:2"><label>စျေးနှုန်း</label><input type="number" id="itemPrice" value="0"></div><div style="flex:1"><label>ခုရေ</label><input type="number" id="itemQty" value="1"></div></div><button class="btn-add" style="margin-top:15px;" onclick="addToCart()"><i class="fas fa-plus-circle"></i> စာရင်းထဲထည့်မည်</button></section>
+    <div id="mainBill" style="display:none;"><section id="billContainer"></section><section><div style="display: flex; gap: 10px;"><div style="flex:1"><label>ဝန်ဆောင်ခ (+)</label><input type="number" id="extra" value="0" oninput="calc()"></div><div style="flex:1"><label>လျှော့စျေး (-)</label><input type="number" id="disc" value="0" oninput="calc()"></div></div><div class="form-group" style="margin-top:15px;"><label>ငွေပေးချေမှုပုံစံ</label><select id="pMethod"></select></div><div class="grand-total">စုစုပေါင်း: <span id="gTotal">0</span> KS</div><button onclick="generateVoucher()" class="btn-print"><i class="fas fa-file-invoice"></i> စလစ်ထုတ်မည်</button></section></div>
+</div>
+
+<div class="container hidden" id="historyView">
+    <div id="dailyStats" style="margin-bottom:20px; text-align:center; background:var(--primary); color:white; padding:15px; border-radius:15px;"><h3 id="statDate">ဒီနေ့ရောင်းရငွေ</h3><h2 id="statTotal">0 KS</h2></div>
+    <div id="historyList"></div>
+</div>
+
+<div class="container hidden" id="pdfView">
+    <h3 style="margin-bottom: 15px; color: #444;">သိမ်းဆည်းထားသော PDF များ</h3>
+    <div id="pdfList"></div>
+</div>
+
+<div class="container hidden" id="settingsView">
+    <div class="settings-btn" onclick="toggleAccordion('shopSettingsMenu', this)"><span><i class="fas fa-store"></i> ဆိုင်အချက်အလက် ပြင်မည်</span><i class="fas fa-chevron-down"></i></div>
+    <div class="settings-content" id="shopSettingsMenu">
+        <div class="form-group"><label>ဆိုင် Logo</label><input type="file" id="shopLogoInput" accept="image/*" onchange="previewFile('shopLogoInput', 'logoPreview')"><img id="logoPreview" class="preview-img"></div>
+        <div class="form-group"><label>ဆိုင်အမည်</label><input type="text" id="setShopName"></div><div class="form-group"><label>လိပ်စာ</label><input type="text" id="setShopAddress"></div><div class="form-group"><label>ဖုန်းနံပါတ်</label><input type="text" id="setShopPhone"></div><div class="form-group"><label>Voucher အောက်ခြေစာသား</label><textarea id="setVFooter" rows="2"></textarea></div><button class="btn-add" onclick="saveShopSettings()">သိမ်းဆည်းမည်</button>
+    </div>
+    <div class="settings-btn" onclick="toggleAccordion('qrSettingsMenu', this)"><span><i class="fas fa-qrcode"></i> QR ပုံများ ပြင်မည်</span><i class="fas fa-chevron-down"></i></div>
+    <div class="settings-content" id="qrSettingsMenu"><div class="form-group"><label>Payment အမည်</label><input type="text" id="newPayName"></div><div class="form-group"><label>QR ပုံ</label><input type="file" id="newPayQRInput" accept="image/*"></div><button class="btn-add" onclick="addPayMethod()">ထည့်မည်</button><div id="payMethodsList" style="margin-top:15px;"></div></div>
+    <div class="settings-btn" onclick="toggleAccordion('itemSettingsMenu', this)"><span><i class="fas fa-list"></i> ပစ္စည်းစာရင်း ပြင်မည်</span><i class="fas fa-chevron-down"></i></div>
+    <div class="settings-content" id="itemSettingsMenu"><div class="form-group"><label>အမည်</label><input type="text" id="newIName"></div><div class="form-group"><label>စျေးနှုန်း</label><input type="number" id="newIPrice"></div><button class="btn-add" onclick="saveNewItem()">သိမ်းမည်</button><div id="manageItemsList" style="margin-top:15px;"></div></div>
+</div>
+
+<div id="vOverlay" class="overlay" onclick="closeVoucherIfOutside(event)">
+    <div class="voucher-card" onclick="event.stopPropagation()">
+        <span style="position:absolute; top:5px; right:15px; font-size:35px; color:#888; cursor:pointer;" onclick="closeVoucher()">&times;</span>
+        <div id="vCaptureWrapper"><div id="vCapture">
+            <div class="v-header"><img id="vLogoImg" class="v-logo"><h2 id="vShopName" style="font-size: 18px;"></h2><p id="vShopInfo" style="font-size: 11px;"></p></div>
+            <div id="vCustInfo" style="font-size:11px; margin-bottom:8px; display:none; border-bottom:1px solid #eee; padding-bottom:5px;">Customer: <b id="vnName"></b> | <b id="vnPhone"></b></div>
+            <div style="font-size:10px; display:flex; justify-content: space-between;"><span id="vnNo"></span><span id="vdDate"></span></div>
+            <table style="width:100%; border-collapse: collapse; font-size:12px; margin:15px 0;"><thead><tr style="border-bottom:1px solid #000;"><th align="left">Item</th><th align="center">Qty</th><th align="right">Total</th></tr></thead><tbody id="vtBody"></tbody></table>
+            <div style="text-align:right; font-size:12px; border-top:1px solid #000; padding-top:10px;">Subtotal: <span id="vsSub">0</span> KS<br>Extra/Disc: <span id="vedExtra">0</span> KS<br><strong style="font-size:16px; color:#d35400;">Total: <span id="vgGrand">0</span> KS</strong><br>Pay: <b id="vpPay"></b></div>
+            <div id="vQRBox" style="text-align:center; margin-top:10px; display:none;"><img id="vQRImg" style="width:120px; height:120px; object-fit: contain;"></div>
+            <div style="text-align:center; margin-top:15px; border-top:1px dashed #ccc; padding-top:10px;"><p id="vFooterText" style="font-size:11px; font-weight:bold;"></p></div>
+        </div></div>
+    </div>
+</div>
+
+<nav class="nav-bar">
+    <div class="nav-item active" onclick="switchTab('pos')"><i class="fas fa-calculator"></i>အရောင်း</div>
+    <div class="nav-item" onclick="switchTab('history')"><i class="fas fa-history"></i>မှတ်တမ်း</div>
+    <div class="nav-item" onclick="switchTab('pdf')"><i class="fas fa-file-pdf"></i>Voucher PDF</div>
+    <div class="nav-item" onclick="switchTab('settings')"><i class="fas fa-cog"></i>ပြင်ဆင်ရန်</div>
+</nav>
+
+<script>
+    let cart = [];
+    let items = JSON.parse(localStorage.getItem('min_items')) || [{name: "A4 တစ်ဖက်", price: 100}, {name: "A4 နှစ်ဖက်", price: 200}];
+    let shopSettings = JSON.parse(localStorage.getItem('min_shop_settings')) || {name: "Min Copy & Print", address: "May Kha Hall", phone: "09964563388", logo: "image_0.jpg", footer: "အားပေးမှုကို အထူးကျေးဇူးတင်ရှိပါသည်။"};
+    let payMethods = JSON.parse(localStorage.getItem('min_payments')) || [{name: "Cash", qr: ""}, {name: "KPay", qr: ""}, {name: "WavePay", qr: ""}];
+    let history = JSON.parse(localStorage.getItem('min_history')) || [];
+    let vCount = parseInt(localStorage.getItem('min_vcount')) || 1;
+
+    function switchTab(tab) {
+        document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById(tab + 'View').classList.remove('hidden');
+        const tabs = ['pos', 'history', 'pdf', 'settings'];
+        document.querySelectorAll('.nav-item')[tabs.indexOf(tab)].classList.add('active');
+        if(tab === 'history') renderHistory();
+        if(tab === 'pdf') renderPdfList();
+        if(tab === 'settings') renderSettings();
+        if(tab === 'pos') initPOS();
+    }
+
+    function toggleAccordion(id, btn) {
+        const content = document.getElementById(id);
+        const isActive = content.classList.contains('active-content');
+        document.querySelectorAll('.settings-content').forEach(c => c.classList.remove('active-content'));
+        if (!isActive) content.classList.add('active-content');
+    }
+
+    function previewFile(inputId, imgId) {
+        const file = document.getElementById(inputId).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => document.getElementById(imgId).src = reader.result;
+        if (file) reader.readAsDataURL(file);
+    }
+
+    function saveShopSettings() {
+        shopSettings.name = document.getElementById('setShopName').value;
+        shopSettings.address = document.getElementById('setShopAddress').value;
+        shopSettings.phone = document.getElementById('setShopPhone').value;
+        shopSettings.logo = document.getElementById('logoPreview').src;
+        shopSettings.footer = document.getElementById('setVFooter').value;
+        localStorage.setItem('min_shop_settings', JSON.stringify(shopSettings));
+        applyShopSettings();
+        alert("သိမ်းဆည်းပြီးပါပြီ");
+    }
+
+    function applyShopSettings() {
+        document.getElementById('headerShopName').innerText = shopSettings.name;
+        document.getElementById('vShopName').innerText = shopSettings.name;
+        document.getElementById('vShopInfo').innerText = `${shopSettings.address} | Phone: ${shopSettings.phone}`;
+        document.getElementById('vLogoImg').src = shopSettings.logo;
+        document.getElementById('vFooterText').innerText = shopSettings.footer;
+    }
+
+    function initPOS() {
+        applyShopSettings();
+        const dl = document.getElementById('items'), qb = document.getElementById('quickButtons'), ps = document.getElementById('pMethod');
+        dl.innerHTML = ''; qb.innerHTML = ''; ps.innerHTML = '';
+        items.forEach(item => {
+            dl.innerHTML += `<option value="${item.name}">`;
+            qb.innerHTML += `<div class="q-btn" onclick="quickAdd('${item.name}', ${item.price})">${item.name}<br>${item.price}</div>`;
+        });
+        payMethods.forEach(m => ps.innerHTML += `<option value="${m.name}">${m.name}</option>`);
+    }
+
+    function quickAdd(n, p) { cart.push({ n, p, q: 1, t: p }); renderCart(); }
+    function autoPrice() {
+        const item = items.find(i => i.name === document.getElementById('itemName').value);
+        if(item) document.getElementById('itemPrice').value = item.price;
+    }
+    function addToCart() {
+        const n = document.getElementById('itemName').value, p = parseInt(document.getElementById('itemPrice').value) || 0, q = parseInt(document.getElementById('itemQty').value) || 1;
+        if(n && p > 0) { cart.push({ n, p, q, t: p*q }); renderCart(); document.getElementById('itemName').value = ''; }
+    }
+    function renderCart() {
+        const container = document.getElementById('billContainer');
+        container.innerHTML = cart.map((i, idx) => `<div class="bill-item"><div><b>${i.n}</b><br><small>${i.p} x ${i.q}</small></div><div style="display:flex; align-items:center; gap:10px;"><span>${i.t.toLocaleString()}</span><i class="fas fa-trash" style="color:red; cursor:pointer;" onclick="removeItem(${idx})"></i></div></div>`).join('');
+        document.getElementById('mainBill').style.display = cart.length ? 'block' : 'none';
+        calc();
+    }
+    function removeItem(idx) { cart.splice(idx, 1); renderCart(); }
+    function calc() {
+        const s = cart.reduce((x, i) => x + i.t, 0), e = parseInt(document.getElementById('extra').value) || 0, d = parseInt(document.getElementById('disc').value) || 0;
+        const total = s + e - d;
+        document.getElementById('gTotal').innerText = total.toLocaleString();
+        return { s, e, d, total };
+    }
+
+    async function generateVoucher() {
+        const res = calc(), pay = document.getElementById('pMethod').value, cName = document.getElementById('custName').value, cPhone = document.getElementById('custPhone').value;
+        const vNo = vCount.toString().padStart(4, '0'), now = new Date(), dateStr = now.toLocaleString();
+        const vData = { vNo, date: dateStr, total: res.total, items: [...cart], method: pay, customer: cName || 'General', phone: cPhone, extra: res.e, disc: res.d };
+        history.push(vData);
+        localStorage.setItem('min_history', JSON.stringify(history));
+        vCount++; localStorage.setItem('min_vcount', vCount);
+        renderVoucherToOverlay(vData);
+        document.getElementById('vOverlay').style.display = 'flex';
+        
+        setTimeout(async () => {
+            const canvas = await html2canvas(document.getElementById('vCapture'), { scale: 2 });
+            const doc = new jspdf.jsPDF({ orientation: 'p', unit: 'mm', format: [80, 200] });
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', 2, 2, 76, 0);
+            doc.save(`Voucher_${vNo}.pdf`);
+        }, 800);
+    }
+
+    function renderVoucherToOverlay(h) {
+        applyShopSettings();
+        document.getElementById('vnNo').innerText = "Voucher: #" + h.vNo;
+        document.getElementById('vdDate').innerText = "Date: " + h.date;
+        document.getElementById('vsSub').innerText = h.items.reduce((acc, i) => acc + i.t, 0).toLocaleString();
+        document.getElementById('vedExtra').innerText = (h.extra - h.disc).toLocaleString();
+        document.getElementById('vgGrand').innerText = h.total.toLocaleString();
+        document.getElementById('vpPay').innerText = h.method;
+        document.getElementById('vCustInfo').style.display = (h.customer !== 'General' || h.phone) ? 'block' : 'none';
+        document.getElementById('vnName').innerText = h.customer;
+        document.getElementById('vnPhone').innerText = h.phone || '-';
+        document.getElementById('vtBody').innerHTML = h.items.map(i => `<tr><td>${i.n}</td><td align="center">${i.q}</td><td align="right">${i.t.toLocaleString()}</td></tr>`).join('');
+        const payObj = payMethods.find(m => m.name === h.method);
+        const qrBox = document.getElementById('vQRBox');
+        if(payObj && payObj.qr) { qrBox.style.display = 'block'; document.getElementById('vQRImg').src = payObj.qr; } else qrBox.style.display = 'none';
+    }
+
+    async function shareVoucher(idx) {
+        const h = history[idx];
+        renderVoucherToOverlay(h);
+        setTimeout(async () => {
+            try {
+                const canvas = await html2canvas(document.getElementById('vCapture'), { scale: 2 });
+                const doc = new jspdf.jsPDF({ orientation: 'p', unit: 'mm', format: [80, 200] });
+                doc.addImage(canvas.toDataURL('image/png'), 'PNG', 2, 2, 76, 0);
+                const pdfBlob = doc.output('blob');
+                const file = new File([pdfBlob], `Voucher_${h.vNo}.pdf`, { type: 'application/pdf' });
+                if (navigator.share) {
+                    await navigator.share({ files: [file], title: `Voucher #${h.vNo}`, text: `Voucher for ${h.customer}` });
+                } else { alert("Sharing not supported on this browser."); doc.save(`Voucher_${h.vNo}.pdf`); }
+            } catch (e) { console.error(e); alert("Share process failed. Try again."); }
+        }, 500);
+    }
+
+    function renderHistory() {
+        const today = new Date().toLocaleDateString();
+        let total = 0;
+        document.getElementById('historyList').innerHTML = history.slice().reverse().map(h => {
+            if(h.date.includes(today)) total += h.total;
+            return `<div style="background:white; padding:15px; border-radius:15px; margin-bottom:10px; border-left:5px solid var(--primary);"><b>#${h.vNo} - ${h.method}</b><br>👤 ${h.customer}<div style="text-align:right; color:var(--primary);"><b>${h.total.toLocaleString()} KS</b></div></div>`;
+        }).join('');
+        document.getElementById('statTotal').innerText = total.toLocaleString() + " KS";
+    }
+
+    function renderPdfList() {
+        document.getElementById('pdfList').innerHTML = history.slice().reverse().map((h, i) => {
+            const rIdx = history.length - 1 - i;
+            return `<div class="pdf-item"><div style="flex:1"><b>#${h.vNo} - ${h.customer}</b><br><small>${h.date}</small></div><div style="display:flex; gap:8px;"><button style="background:#e3f2fd; color:#1976d2; border:none; padding:8px; border-radius:8px;" onclick="reViewVoucher(${rIdx})"><i class="fas fa-eye"></i></button><button style="background:#e8f5e9; color:#2e7d32; border:none; padding:8px; border-radius:8px;" onclick="shareVoucher(${rIdx})"><i class="fas fa-share-alt"></i></button><button style="background:#ffebee; color:#c62828; border:none; padding:8px; border-radius:8px;" onclick="deleteHistory(${rIdx})"><i class="fas fa-trash"></i></button></div></div>`;
+        }).join('');
+    }
+
+    function renderSettings() {
+        document.getElementById('setShopName').value = shopSettings.name;
+        document.getElementById('setShopAddress').value = shopSettings.address;
+        document.getElementById('setShopPhone').value = shopSettings.phone;
+        document.getElementById('logoPreview').src = shopSettings.logo;
+        document.getElementById('setVFooter').value = shopSettings.footer;
+        document.getElementById('payMethodsList').innerHTML = payMethods.map((m, i) => `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;"><span>${m.name}</span>${m.name !== 'Cash' ? `<i class="fas fa-times" style="color:red; cursor:pointer;" onclick="deletePayMethod(${i})"></i>` : ''}</div>`).join('');
+        document.getElementById('manageItemsList').innerHTML = items.map((item, i) => `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;"><span>${item.name} (${item.price})</span><i class="fas fa-trash" style="color:red; cursor:pointer;" onclick="deleteItem(${i})"></i></div>`).join('');
+    }
+
+    function addPayMethod() { const n = document.getElementById('newPayName').value, qI = document.getElementById('newPayQRInput'), r = new FileReader(); r.onloadend = () => { payMethods.push({ name: n, qr: r.result }); localStorage.setItem('min_payments', JSON.stringify(payMethods)); renderSettings(); }; if(qI.files[0]) r.readAsDataURL(qI.files[0]); else { payMethods.push({ name: n, qr: "" }); localStorage.setItem('min_payments', JSON.stringify(payMethods)); renderSettings(); } }
+    function deletePayMethod(idx) { payMethods.splice(idx, 1); localStorage.setItem('min_payments', JSON.stringify(payMethods)); renderSettings(); }
+    function saveNewItem() { const n = document.getElementById('newIName').value, p = parseInt(document.getElementById('newIPrice').value); if(n && p) { items.push({name:n, price:p}); localStorage.setItem('min_items', JSON.stringify(items)); renderSettings(); initPOS(); } }
+    function deleteItem(idx) { items.splice(idx, 1); localStorage.setItem('min_items', JSON.stringify(items)); renderSettings(); initPOS(); }
+    function reViewVoucher(idx) { renderVoucherToOverlay(history[idx]); document.getElementById('vOverlay').style.display = 'flex'; }
+    function deleteHistory(idx) { if(confirm("ဖျက်မှာလား?")) { history.splice(idx, 1); localStorage.setItem('min_history', JSON.stringify(history)); renderPdfList(); } }
+    function closeVoucher() { document.getElementById('vOverlay').style.display = 'none'; cart = []; renderCart(); }
+    function closeVoucherIfOutside(e) { if(e.target.id === 'vOverlay') closeVoucher(); }
+    initPOS();
+</script>
+</body>
+</html>
